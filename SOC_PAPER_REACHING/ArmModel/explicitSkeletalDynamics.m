@@ -45,3 +45,4 @@ t38 = Tshoulder+TEXT(1)+t19+t25+t27+t29+t33;
 t39 = t13+t22+t23+t24+t30+t31+t36;
 t40 = 1.0./t39;
 out1 = [t38.*t40.*(I2+t18)-t34.*t37.*t40;t37.*t40.*(I1+t21+t34+m1.*t10+m2.*t9)-t34.*t38.*t40];
+%what is the output variable type? As in is a torque, position, force, etc?

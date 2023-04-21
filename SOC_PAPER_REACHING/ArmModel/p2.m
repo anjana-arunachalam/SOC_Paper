@@ -7,3 +7,5 @@ function p2 = p2(l1,l2,q1,q2)
 
 t2 = q1+q2;
 p2 = [l1.*cos(q1)+l2.*cos(t2);l1.*sin(q1)+l2.*sin(t2)];
+
+% not sure what this function stands for or does....

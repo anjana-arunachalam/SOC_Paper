@@ -7,3 +7,5 @@ T = dM_matrix*Fm;
 T = [diag(T(1:size(q,2),:))'; diag(T(size(q,2)+1:end,:))'];
 end
 
+% think this function calculates the corresponding torque based on the
+% input force magnitudes and joint angular positions 
