@@ -1,3 +1,7 @@
+%This code takes the shoulder and elbow angular positions, velocities and
+%auxillary data to calculate the end effector velocity
+%the derivative is calculated analytically using equations instead of
+%getting thr numerical derivative based on the end effector position
 function EEVel = EndEffectorVel(q,qdot,auxdata)
 
 theta_shoulder = q(1,:);
