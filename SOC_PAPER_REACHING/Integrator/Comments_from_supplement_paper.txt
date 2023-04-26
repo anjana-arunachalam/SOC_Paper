@@ -1,0 +1,8 @@
+g - refers to the inequality constraints
+dg_dx -> equation  22 in the supplimentary paper
+dg_dz -> eqn 23
+dG-dw -> eqn 25
+
+In general the trapezoidal rule formula is: Integral of f(x) for x values ranging from a to b = (b-a)*(1/2)*(f(a)+f(b))
+
+%I am not sure how the 4 different integration functions here are defined and what they mean. 
