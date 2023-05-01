@@ -6,13 +6,12 @@ auxdata.Ndof=2;
 T = 0.8; auxdata.T = T; % time horizon
 
 % Parameters of skeletal arm model
-auxdata.m1 = 1.4; auxdata.m2 = 1;
-auxdata.l1 = 0.3; auxdata.l2 = 0.33;
+auxdata.m1 = 1.4; auxdata.m2 = 1; %mass of the two links
+auxdata.l1 = 0.3; auxdata.l2 = 0.33; %length?
 auxdata.lc1 = 0.11; auxdata.lc2 = 0.16;
-auxdata.I1 = 0.025;
-auxdata.I2 = 0.045;
+auxdata.I1 = 0.025; auxdata.I2 = 0.045;%inertia? 
 
-% Load and store coefficients for muscle tendon lengts and moment arms
+% Load and store coefficients for muscle tendon lengths and moment arms
 load('dM_coefficients.mat')
 load('LMT_coefficients.mat')
 
