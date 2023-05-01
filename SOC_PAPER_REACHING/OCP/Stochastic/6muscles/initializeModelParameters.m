@@ -2,7 +2,9 @@ function auxdata = initializeModelParameters()
 % Degrees of freedom
 auxdata.Ndof=2;
 
-% Movement time
+% Movement time 
+%I'll have to modify this variable if I want to optimise the final movement
+%time
 T = 0.8; auxdata.T = T; % time horizon
 
 % Parameters of skeletal arm model
