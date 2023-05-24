@@ -1,7 +1,15 @@
 function functions = generateFunctions_OCP_6muscles_FF_FB(auxdata)
+% Personally, I think that this script is simply responsible for creating
+% several funciton handles that correspond to the feedforward dynamics, its
+% sensitivity to states and motor noises, the trapezoidal integration
+% scheme and its sensitivity, and the expected effrt and corrective
+% feedback. The funcitons themselves are not defined though 
+
 import casadi.*
 
 % FORWARD DYNAMICS
+%declaring the variables to be in the symbolic primitive format in casadi
+
 e_ff_MX = MX.sym('u_MX',6);       % Controls (muscle excitations - feedforward)
 X_MX = MX.sym('X_MX',auxdata.nStates);    % States (muscle activations and joint kinematics)
 wM_MX = MX.sym('wM_MX',2);        % Motor noise
@@ -37,9 +45,9 @@ functions.f_G_Trapezoidal = f_G_Trapezoidal;
 
 % Sensitivity of trapezoidal integration scheme to changes in initial state
 DdX_DX_MX = MX.sym('DdX_DX_MX',auxdata.nStates,auxdata.nStates); 
-DG_DX_MX = DG_DX_Trapezoidal(DdX_DX_MX,auxdata.dt);
+DG_DX_MX = DG_DX_Trapezoidal(DdX_DX_MX,auxdata.dt); 
 f_DG_DX = Function('f_DG_DX',{DdX_DX_MX},{DG_DX_MX});
-functions.f_DG_DX = f_DG_DX;
+functions.f_DG_DX = f_DG_DX; %I don't understand what this sensitivity variable actually refers to in the end
 
 % Sensitivity of trapezoidal integration scheme to changes in final state
 DG_DZ_MX = DG_DZ_Trapzoidal(DdX_DX_MX,auxdata.dt);
@@ -57,8 +65,10 @@ functions.f_DG_DW = f_DG_DW;
 q_MX = MX.sym('q_MX',2); P_q_MX = MX.sym('P_q_MX',2,2);
 EEPos_MX = EndEffectorPos(q_MX,auxdata); f_EEPos = Function('f_EEPos',{q_MX},{EEPos_MX}); % End effector position
 functions.f_EEPos = f_EEPos;
+
 P_EEPos_MX = jacobian(EEPos_MX,q_MX)*P_q_MX*jacobian(EEPos_MX,q_MX)'; f_P_EEPos = Function('f_P_EEPos',{q_MX,P_q_MX},{P_EEPos_MX}); % Covariance of end effector position
 functions.f_P_EEPos = f_P_EEPos;
+
 % End effector velocity and variability
 q_MX = MX.sym('q_MX',2); qdot_MX = MX.sym('q_MX',2); P_qdot_MX = MX.sym('P_qdot_MX',4,4);
 EEVel_MX = EndEffectorVel(q_MX,qdot_MX,auxdata); f_EEVel = Function('f_EEVel',{q_MX,qdot_MX},{EEVel_MX}); % End effector position
