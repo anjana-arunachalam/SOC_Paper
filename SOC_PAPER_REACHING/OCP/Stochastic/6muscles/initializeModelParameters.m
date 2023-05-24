@@ -1,4 +1,8 @@
 function auxdata = initializeModelParameters()
+%Code to create the model based on the predefined parameter values based on
+%Todorov's arm model - like the mass and length of the links and the
+%inertia values
+
 % Degrees of freedom
 auxdata.Ndof=2;
 

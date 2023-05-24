@@ -1,6 +1,7 @@
 function [result,succes] = OCP_6muscles_FF_FB_final(target,forceField,wM_std,wPq_std,wPqdot_std,guessName)
 %% SECTION TITLE
 % DESCRIPTIVE TEXT
+%Which target are you choosing?
 if strcmp(target,'CIRCLE')
     targetNR = 1;
     %     guessName = 'result_CIRCLE.mat';
@@ -20,18 +21,21 @@ import casadi.*
 auxdata = initializeModelParameters();
 
 % Additional simulation settings
-T = auxdata.T;
+T = auxdata.T; %total movement time
 dt = 0.01; auxdata.dt = dt; % time step
-N = round(T/dt); auxdata.N = N;
+N = round(T/dt); auxdata.N = N; % number of steps in the simulation
 time = 0:dt:T; auxdata.time = time;
+
 nStates = 10; auxdata.nStates = nStates; % #states (6 muscle states + 2 positions + 2 velocities)
 wM = (wM_std*ones(2,1)).^2/dt; auxdata.wM = wM; % Motor noise: go from std of continuous noise source to variance of discrete sample
 wPq = (wPq_std*ones(2,1)).^2/dt; auxdata.wPq = wPq; % Sensor position noise: go from std of continuous noise source to variance of discrete sample
 wPqdot = (wPqdot_std*ones(2,1)).^2/dt; auxdata.wPqdot = wPqdot; % Sensor velocity noise: go from std of continuous noise source to variance of discrete sample
+%not quite sure how the continuous time std of the noise is converted to
+%the discrete time variance for wM, wPq and wPqdot
 
 sigma_w = [wM; wPq; wPqdot].*eye(6); auxdata.sigma_w = sigma_w; % Collect noise in covariance matrix
 
-auxdata.forceField = forceField;
+auxdata.forceField = forceField; % do you have a pertubation in the system or not? If yes, what is the value?
 
 %%%% Define CasADi functions - for reasons of efficiency and to compute sensitivities (jacobians) of functions
 functions = generateFunctions_OCP_6muscles_FF_FB(auxdata);
@@ -43,21 +47,29 @@ opti = casadi.Opti(); % Create opti instance
 fsolve_options = optimoptions('fsolve','FiniteDifferenceType','central','StepTolerance',1e-10,'OptimalityTolerance',1e-10);
 shoulder_pos_init = 20*pi/180;
 shoulder_pos_final = 55*pi/180;
-f = @(x)get_px(x,auxdata,shoulder_pos_init);
+
+f = @(x)get_px(x,auxdata,shoulder_pos_init);%defining a new function handler to get the position of the joints
+
 initial_pos = fsolve(f,ones,fsolve_options);
-initial_pos = [shoulder_pos_init; initial_pos];
+initial_pos = [shoulder_pos_init; initial_pos];% why are we concatinating the shoulder_pos_initial in this variable, 
+%if we have to solve for the get_px code to get the correspondin position.
+%- It this a kind of debugging idea?
 
-f = @(x)get_px(x,auxdata,shoulder_pos_final);
+f = @(x)get_px(x,auxdata,shoulder_pos_final);% another function handler - but this time for the final position
 final_pos = fsolve(f,ones,fsolve_options);
-final_pos = [shoulder_pos_final; final_pos];
+final_pos = [shoulder_pos_final; final_pos];% so does this have the shoulder and the elbow positions?
 EE_final = EndEffectorPos(final_pos,auxdata);
-
 
 % % Initial guess controls
 % guessName = 'result_time_0.8_BAR_forceField_0_0.05_0.0003_0.0024_.mat';
+
 if isempty(guessName)
-        X_init = opti.variable(nStates,1); opti.set_initial(X_init, [zeros(6,1); initial_pos; 0;0]);
-        X_guess = zeros(10,N+1); X_guess(1:6,:) = 0.01;   X_guess(7,:) = interp1([0 T], [initial_pos(1) final_pos(1)],time); X_guess(8,:) = interp1([0 T], [initial_pos(2) final_pos(2)],time);
+        X_init = opti.variable(nStates,1);% declaring the variable
+        opti.set_initial(X_init, [zeros(6,1); initial_pos; 0;0]); %6 muscle activations, joint position, and joint velocity
+        X_guess = zeros(10,N+1); X_guess(1:6,:) = 0.01;  
+        X_guess(7,:) = interp1([0 T], [initial_pos(1) final_pos(1)],time); 
+        X_guess(8,:) = interp1([0 T], [initial_pos(2) final_pos(2)],time);
+        
         X = opti.variable(nStates,N+1); opti.set_initial(X, X_guess);
         e_ff = opti.variable(6,N+1); opti.set_initial(e_ff, 0.01);
         K = opti.variable(6*4,N+1); opti.set_initial(K, 0.01);
