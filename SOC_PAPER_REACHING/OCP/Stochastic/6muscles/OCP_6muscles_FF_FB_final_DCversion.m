@@ -24,6 +24,7 @@ T = auxdata.T;
 dt = 0.01; auxdata.dt = dt; % time step
 N = round(T/dt); auxdata.N = N;
 time = 0:dt:T; auxdata.time = time;
+
 nStates = 10; auxdata.nStates = nStates; % #states (4 muscle states + 2 positions + 2 velocities)
 wM = (wM_std*ones(2,1)).^2/dt; auxdata.wM = wM; % Motor noise: go from std of continuous noise source to variance of discrete sample
 wPq = (wPq_std*ones(2,1)).^2/dt; auxdata.wPq = wPq; % Sensor position noise: go from std of continuous noise source to variance of discrete sample
@@ -31,6 +32,7 @@ wPqdot = (wPqdot_std*ones(2,1)).^2/dt; auxdata.wPqdot = wPqdot; % Sensor velocit
 
 sigma_w = [wM; wPq; wPqdot].*eye(6); auxdata.sigma_w = sigma_w; % Collect noise in covariance matrix
 
+%These terms are new compared to the direct OCP method
 indices_P = [1 2 3 4 5 6 7 8 9 10;  0 11 12 13 14 15 16 17 18 19 ; 0 0 20 21 22 23 24 25 26 27; 0 0 0 28 29 30 31 32 33 34; 0 0 0 0 35 36 37 38 39 40; 0 0 0 0 0 41 42 43 44 45; 0 0 0 0 0 0 46 47 48 49; 0 0 0 0 0 0 0 50 51 52; 0 0 0 0 0 0 0 0 53 54; 0 0 0 0 0 0 0 0 0 55]';
 vecIndices_P = [1 2 3 4 5 6 7 8 9 10    12 13 14 15 16 17 18 19 20    23 24 25 26 27 28 29 30    34 35 36 37 38 39 40    45 46 47 48 49 50     56 57 58 59 60     67 68 69 70    78 79 80    89 90   100]';
 
@@ -68,7 +70,7 @@ if isempty(guessName)
     M = opti.variable(nStates,nStates*N); opti.set_initial(M, 0.01);
     L = opti.variable(nStates*(nStates+1)/2,N+1);
     Pmat_init = [1e-6;1e-6;1e-6;1e-6;1e-6;1e-6;1e-4;1e-4;1e-7;1e-7].*eye(10);
-    L_init = sqrt(Pmat_init(vecIndices_P));
+    L_init = sqrt(Pmat_init(vecIndices_P)); % this term is new - compared to the OCP_direct method
     opti.set_initial(L,repmat(L_init,1,N+1));
     opti.subject_to(L(:,1) == L_init);
 else
@@ -79,10 +81,12 @@ else
     timeVec_new = 0:T/timeStepsGuess_new:T;
     e_ff_guess = interp1(timeVec_new,result.e_ff,time);
     K_guess = interp1(timeVec_new,result.K',time)';
+    
     X_init_guess = result.X(:,1);
     Pmat_init = [1e-6;1e-6;1e-6;1e-6;1e-6;1e-6;1e-4;1e-4;1e-7;1e-7;].*eye(10);
     Pmat_i = Pmat_init;
     [X_guess, M_guess, EE_ref_guess, Pmat_guess] = approximateForwardSim(X_init_guess,Pmat_init,e_ff_guess',K_guess,auxdata,functions);
+    
     if abs(EE_ref_guess(1,end)) > 0.1 % control of initial guess is not very stable/precise, better to violate the dynamics and provide trajectories that satisfy the constraints
         X_init = opti.variable(nStates,1); opti.set_initial(X_init, X_init_guess);
         X = opti.variable(nStates,N+1); opti.set_initial(X, interp1(timeVec_new,result.X',time)');
@@ -177,7 +181,8 @@ for i = 1:N
 
 end
 J_fb = J_fb + (functions.f_expectedEffort_fb(X_i_plus,Pmat_next,K_i_plus,EE_ref_i_plus,wPq,wPqdot) + trace(Pmat_next(1:6,1:6)))/2;% + trace(Pmat_i(1:6,1:6));
-
+%not sure what this J_fb term stands for - but it also gets included in the
+%cost - so must be a part of the fb effort variable. 
 %% Boundary conditions
 % Impose mean end effector trajectory to be equal to reference end effect trajectory
 EE = [EndEffectorPos(X(7:8,:),auxdata); EndEffectorVel(X(7:8,:),X(9:10,:),auxdata)];
@@ -315,7 +320,6 @@ try
     result.J_fb_sensoryNoise = J_fb_sensoryNoise;
     result.J_fb_total = J_fb_total;
     result.J_ff_total = J_ff_total;
-
 
 
     result.CCI_ElbowUni = computeCocontraction(result.a(:,1),result.a(:,2));
