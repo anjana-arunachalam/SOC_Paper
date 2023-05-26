@@ -38,19 +38,18 @@ sigma_w = [wM; wPq; wPqdot].*eye(6); auxdata.sigma_w = sigma_w; % Collect noise 
 auxdata.forceField = forceField; % do you have a pertubation in the system or not? If yes, what is the value?
 
 %%%% Define CasADi functions - for reasons of efficiency and to compute sensitivities (jacobians) of functions
-functions = generateFunctions_OCP_6muscles_FF_FB(auxdata);
-
+functions = generateFunctions_OCP_6muscles_FF_FB(auxdata); % this funciton basically just generates the different function handles that calculate the sensitivity of output wrt to states, noise, etc. 
 
 opti = casadi.Opti(); % Create opti instance
-
+ 
 % Initial and final position of the reaching movement
-fsolve_options = optimoptions('fsolve','FiniteDifferenceType','central','StepTolerance',1e-10,'OptimalityTolerance',1e-10);
+fsolve_options = optimoptions('fsolve','FiniteDifferenceType','central','StepTolerance',1e-10,'OptimalityTolerance',1e-10); %Why choose finite difference when you could have algorithmic differentiation
 shoulder_pos_init = 20*pi/180;
 shoulder_pos_final = 55*pi/180;
 
 f = @(x)get_px(x,auxdata,shoulder_pos_init);%defining a new function handler to get the position of the joints
 
-initial_pos = fsolve(f,ones,fsolve_options);
+initial_pos = fsolve(f,ones,fsolve_options);% function to solve, initial states, options as input arguments to fsolve
 initial_pos = [shoulder_pos_init; initial_pos];% why are we concatinating the shoulder_pos_initial in this variable, 
 %if we have to solve for the get_px code to get the correspondin position.
 %- It this a kind of debugging idea?
@@ -76,12 +75,14 @@ if isempty(guessName)
         EE_ref = opti.variable(4,N+1); opti.set_initial(EE_ref, 0.01);
         M = opti.variable(nStates,nStates*N); opti.set_initial(M, 0.01);
         Pmat_init = [1e-6;1e-6;1e-6;1e-6;1e-6;1e-6;1e-4;1e-4;1e-7;1e-7;].*eye(10);
-
 else
     load(guessName);
 
     % Interpolate guess to new mesh or new timing (if reaching movement timing
     % has changed)
+    % QUESTION: How is the movement time adjusted and changed - think it
+    % must be based on the input variable - guessName. Also explains why
+    % there is a new variable called results
     timeStepsGuess_new = size(result.X,2)-1;
     timeVec_new = 0:T/timeStepsGuess_new:T;
     e_ff_guess = interp1(timeVec_new,result.e_ff,time);
@@ -90,6 +91,7 @@ else
     X_init_guess = result.X(:,1);
     Pmat_init = [1e-6;1e-6;1e-6;1e-6;1e-6;1e-6;1e-4;1e-4;1e-7;1e-7;].*eye(10);
     [X_guess, M_guess, EE_ref_guess, Pmat_guess] = approximateForwardSim(X_init_guess,Pmat_init,e_ff_guess',K_guess,auxdata,functions);
+    
     if abs(EE_ref_guess(1,end)) > 0.1 % control of initial guess is not very stable/precise, better to violate the dynamics and provide trajectories that satisfy the constraints
         X_init = opti.variable(nStates,1); opti.set_initial(X_init, X_init_guess);
         X = opti.variable(nStates,N+1); opti.set_initial(X, interp1(timeVec_new,result.X',time)');
@@ -109,14 +111,14 @@ end
 
 Pmat_i = Pmat_init;
 J_fb = 0;
-for i = 1:N
+for i = 1:N % i refers to the ith timestep in the simulation
     X_i = X(:,i);
     X_i_plus = X(:,i+1);
     e_ff_i = e_ff(:,i);
     e_ff_i_plus = e_ff(:,i+1);
     
     dX_i = functions.f_forwardMusculoskeletalDynamics(X_i,e_ff_i,0,0,0*wM,0*wPq,0*wPqdot);
-    dX_i_plus = functions.f_forwardMusculoskeletalDynamics(X_i_plus,e_ff_i_plus,0,0,0*wM,0*wPq,0*wPqdot);
+    dX_i_plus = functions.f_forwardMusculoskeletalDynamics(X_i_plus,e_ff_i_plus,0,0,0*wM,0*wPq,0*wPqdot); % what do the i and iplus terms mean? Refers to the time step
     opti.subject_to(functions.f_G_Trapezoidal(X_i,X_i_plus,dX_i,dX_i_plus)*1e3 == 0);
     
     M_i = M(:,(i-1)*nStates + 1:i*nStates);
@@ -126,6 +128,7 @@ for i = 1:N
     K_i = reshape(K(:,i),6,4);
     K_i_plus = reshape(K(:,i+1),6,4);
     
+    %different sensitivities
     DdX_DX_i = functions.f_DdX_DX(X_i,e_ff_i,K_i,EE_ref_i,wM,wPq,wPqdot);
     DdZ_DX_i = functions.f_DdX_DX(X_i_plus,e_ff_i_plus,K_i_plus,EE_ref_i_plus,wM,wPq,wPqdot);
     DdX_Dw_i = functions.f_DdX_Dw(X_i,e_ff_i,K_i,EE_ref_i,wM,wPq,wPqdot);
@@ -137,7 +140,7 @@ for i = 1:N
     opti.subject_to(M_i*DG_DZ_i - eye(nStates) == 0);
     J_fb = J_fb + (functions.f_expectedEffort_fb(X_i,Pmat_i,K_i,EE_ref_i,wPq,wPqdot) + trace(Pmat_i(1:6,1:6)))/2; %expectedEffort_fb(i);
     
-    % Obstacle
+    % Obstacle - only needed if the target is an obstacle
     if targetNR == 3
         if i*dt > T*5/8
             P_q_i = Pmat_i(7:8,7:8);
@@ -146,7 +149,7 @@ for i = 1:N
             opti.subject_to(-1e-4 < EE_ref_i(1) < 1e-4)
         end
     end
-    
+    %covariance?
     Pmat_i = M_i*(DG_DX_i*Pmat_i*DG_DX_i' + DG_DW_i*sigma_w*DG_DW_i')*M_i'; % + dGdW*sigmaW*dGdW'
     
 end
@@ -180,7 +183,7 @@ P_EEPos_final = functions.f_P_EEPos(X(7:8,end),P_q_final);
 P_q_qdot_final = Pmat_i(7:10,7:10);
 P_EEVel_final = functions.f_P_EEVel(X(7:8,end),X(9:10,end),P_q_qdot_final);
 if targetNR == 1 || targetNR == 3
-    opti.subject_to(P_EEPos_final(1,1) < 0.004^2);
+    opti.subject_to(P_EEPos_final(1,1) < 0.004^2); % giving a bounds for the required accuracy
 
 else
 %     opti.subject_to(P_EEPos_final(1,1) < 0.025^2);
@@ -200,7 +203,7 @@ opti.subject_to(0 < X(7,:) < 180);
 opti.subject_to(0 < X(8,:) < 180);
 
 %% Cost function
-opti.minimize(1e3*((sumsqr(e_ff)+sumsqr(X(1:6,:)))/2+J_fb)*dt);
+opti.minimize(1e3*((sumsqr(e_ff)+sumsqr(X(1:6,:)))/2+J_fb)*dt); % Cost here doesn't match with the cost funciton definied 
 
 %% Setup solver
 % optionssol.ipopt.nlp_scaling_method = 'gradient-based';
